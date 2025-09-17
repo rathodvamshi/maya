@@ -2,3 +2,35 @@ C:\Users\vamsh\Source\3_1\project_ps2\maya\Project-Maya2\frontend>npm i
 C:\Users\vamsh\Source\3_1\project_ps2\maya\Project-Maya2\frontend>npm start
 C:\Users\vamsh\Source\3_1\project_ps2\maya\Project-Maya2\backend>python -m venv venv
 C:\Users\vamsh\Source\3_1\project_ps2\maya\Project-Maya2>venv\Scripts\activate
+
+
+# MongoDB Configuration
+DATABASE_URL=mongodb+srv://Rathodvamshi:Rathod369@cluster0.yihtilk.mongodb.net/Maya?retryWrites=true&w=majority
+
+# JWT Secret Key
+SECRET_KEY=Maya@369
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Redis Configuration (optional)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+
+# AI API Keys
+GEMINI_API_KEYS=AIzaSyDBK6irtEJ4NIV4xonuMGY1a4mCZsj-sMw
+COHERE_API_KEY=w8Fl5GawNhWC4ZyNmsnzn5efFa5HrnViT4CkjNwp
+ANTHROPIC_API_KEY=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
+
+API_MONTHLY_LIMIT=20
+
+# Email Configuration
+MAIL_USERNAME=rathodvamshi369@gmail.com
+MAIL_PASSWORD=rzeo aocu krnh uyax
+MAIL_FROM=rathodvamshi369@gmail.com
+MAIL_PORT=587
+MAIL_SERVER=smtp.gmail.com
+MAIL_STARTTLS=True
+MAIL_SSL_TLS=False

@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 venv/
+.env
 
 # Node/Frontend
 node_modules/
@@ -11,3 +12,4 @@ build/
 # IDE-specific
 .idea/
 .vscode/
+".env" 
