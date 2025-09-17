@@ -1,5 +1,3 @@
-// frontend/src/services/auth.js
-
 import axios from 'axios';
 
 // The base URL of our FastAPI backend.
@@ -39,6 +37,19 @@ const authService = {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
+  },
+
+  /**
+   * Updates the user's profile.
+   * @param {object} data - The profile data to update (e.g., { name, email }).
+   * @returns {Promise} - The Axios promise for the API call.
+   */
+  updateProfile(data) {
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const updatedUser = { ...user, ...data };
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    // Mock API call; replace with actual endpoint if available
+    return Promise.resolve({ data: updatedUser });
   },
 
   /**

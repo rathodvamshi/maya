@@ -68,3 +68,11 @@ neo4j://localhost:7687
 
 with the neo4j user.
 
+celery -A app.celery_worker.celery_app worker --loglevel=info -P eventlet
+celery -A app.celery_worker.celery_app beat --loglevel=info
+uvicorn app.main:app --reload
+
+
+gemini link = https://g.co/gemini/share/14e046a1fde8
+gpt = https://chatgpt.com/share/68cb3a75-a850-8011-aef8-d21552f6d319
+pine cone = https://app.pinecone.io/organizations/-OXK3CiyEcvguVc3xLQh/projects/b69aff33-eb1e-45d5-8867-d9eb92a9645c/indexes

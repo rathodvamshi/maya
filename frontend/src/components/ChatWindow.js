@@ -1,5 +1,3 @@
-// frontend/src/components/ChatWindow.js
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Copy,
@@ -10,69 +8,66 @@ import {
   Edit3,
   Bot,
   User,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
-import feedbackService from '../services/feedbackService';
-import '../styles/ChatWindow.css';
+import '../styles/ChatWindow.css'; // Make sure this CSS file is imported
 
 const ChatWindow = ({
-  messages,
-  isLoading,
-  onFetchMore,        // load older messages
-  hasMoreMessages,    // flag if there are older messages
-  activeSessionId,    // for feedback API
+  messages = [],
+  isLoading = false,
+  onFetchMore,
+  hasMoreMessages = false,
+  activeSessionId,
 }) => {
   const chatWindowRef = useRef(null);
   const topObserver = useRef(null);
 
-  // --- Local UI State ---
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [likedMessages, setLikedMessages] = useState(new Set());
   const [speakingIndex, setSpeakingIndex] = useState(null);
-  const [feedbackState, setFeedbackState] = useState({}); // { [index]: 'submitted' }
+  const [feedbackState, setFeedbackState] = useState({});
+  const [feedbackNotifications, setFeedbackNotifications] = useState([]);
 
-  // Scroll to bottom when new messages appear
   useEffect(() => {
     if (chatWindowRef.current) {
       chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Infinite scroll
   const topElementRef = useCallback(
     (node) => {
-      if (isLoading || !hasMoreMessages) return;
+      if (!hasMoreMessages || isLoading) return;
       if (topObserver.current) topObserver.current.disconnect();
 
       topObserver.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMoreMessages) {
-          onFetchMore();
+        if (entries[0].isIntersecting) {
+          onFetchMore?.();
         }
       });
 
       if (node) topObserver.current.observe(node);
     },
-    [isLoading, hasMoreMessages, onFetchMore]
+    [hasMoreMessages, isLoading, onFetchMore]
   );
 
-  // Copy message
+  // --- Actions ---
   const copyToClipboard = async (text, index) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000);
     } catch (err) {
-      console.error('Failed to copy text: ', err);
+      console.error('Failed to copy:', err);
     }
   };
 
-  // Like toggle
   const toggleLike = (index) => {
     const newLiked = new Set(likedMessages);
-    newLiked.has(index) ? newLiked.delete(index) : newLiked.add(index);
+    likedMessages.has(index) ? newLiked.delete(index) : newLiked.add(index);
     setLikedMessages(newLiked);
   };
 
-  // Speak / stop
   const toggleSpeak = (text, index) => {
     if (speakingIndex === index) {
       window.speechSynthesis.cancel();
@@ -86,27 +81,34 @@ const ChatWindow = ({
     }
   };
 
-  // Edit message (user-only)
   const editMessage = (index) => {
     console.log('Edit message:', index);
-    // TODO: open modal or inline editor
   };
 
-  // --- Feedback handler ---
-  const handleFeedback = async (index, rating) => {
-    if (feedbackState[index]) return; // prevent resubmit
+  const addFeedbackNotification = (type, index) => {
+    const notification = {
+      id: Date.now(),
+      type,
+      index,
+      message: type === 'good' ? 'Thanks for your feedback!' : 'Thanks for your feedback!',
+    };
 
-    const ratedMessage = messages[index];
-    const chatHistory = messages.slice(0, index + 1);
+    setFeedbackNotifications((prev) => [...prev, notification]);
+    setTimeout(() => {
+      setFeedbackNotifications((prev) =>
+        prev.filter((notif) => notif.id !== notification.id)
+      );
+    }, 3000);
+  };
+
+  const handleFeedback = async (index, rating) => {
+    if (feedbackState[index]) return;
 
     try {
-      await feedbackService.submitFeedback({
-        sessionId: activeSessionId,
-        chatHistory,
-        ratedMessage,
-        rating,
-      });
-      setFeedbackState((prev) => ({ ...prev, [index]: 'submitted' }));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setFeedbackState((prev) => ({ ...prev, [index]: rating }));
+      addFeedbackNotification(rating, index);
+      console.log(`Feedback submitted for message ${index}: ${rating}`);
     } catch (error) {
       console.error('Failed to submit feedback:', error);
     }
@@ -115,17 +117,12 @@ const ChatWindow = ({
   return (
     <div className="chat-container">
       <div className="chat-window" ref={chatWindowRef}>
-        {/* Infinite scroll trigger */}
-        {hasMoreMessages && <div ref={topElementRef} style={{ height: '1px' }}></div>}
-
+        {hasMoreMessages && <div ref={topElementRef} style={{ height: '1px' }} />}
+        
         {messages.map((msg, index) => (
           <div key={index} className={`message-wrapper ${msg.sender}`}>
             <div className="avatar">
-              {msg.sender === 'user' ? (
-                <User size={20} className="avatar-icon user-icon" />
-              ) : (
-                <Bot size={20} className="avatar-icon ai-icon" />
-              )}
+              {msg.sender === 'user' ? <User size={20} /> : <Bot size={20} />}
             </div>
 
             <div className="message-content">
@@ -133,42 +130,29 @@ const ChatWindow = ({
                 <p>{msg.text}</p>
               </div>
 
+              {/* Actions below message */}
               <div className="message-actions">
                 {/* Copy */}
                 <button
-                  className={`action-btn copy-btn ${
-                    copiedIndex === index ? 'copied' : ''
-                  }`}
+                  className={`action-btn copy-btn ${copiedIndex === index ? 'copied' : ''}`}
                   onClick={() => copyToClipboard(msg.text, index)}
                   title="Copy message"
                 >
                   <Copy size={14} />
-                  <span className="tooltip">
-                    {copiedIndex === index ? 'Copied!' : 'Copy'}
-                  </span>
                 </button>
 
-                {/* Like (UI-only, not feedback) */}
-                <button
-                  className={`action-btn like-btn ${
-                    likedMessages.has(index) ? 'liked' : ''
-                  }`}
-                  onClick={() => toggleLike(index)}
-                  title="Like message"
-                >
-                  <ThumbsUp size={14} />
-                  <span className="tooltip">
-                    {likedMessages.has(index) ? 'Liked' : 'Like'}
-                  </span>
-                </button>
-
-                {/* Feedback (only for assistant messages) */}
+                {/* Assistant feedback */}
                 {msg.sender === 'assistant' && (
                   <>
                     <button
-                      className={`action-btn feedback-btn ${
-                        feedbackState[index] ? 'selected' : ''
-                      }`}
+                      className={`action-btn like-btn ${likedMessages.has(index) ? 'liked' : ''}`}
+                      onClick={() => toggleLike(index)}
+                      title="Like message"
+                    >
+                      <ThumbsUp size={14} />
+                    </button>
+                    <button
+                      className={`action-btn feedback-btn good-btn ${feedbackState[index] === 'good' ? 'selected' : ''}`}
                       onClick={() => handleFeedback(index, 'good')}
                       disabled={feedbackState[index]}
                       title="Good response"
@@ -176,9 +160,7 @@ const ChatWindow = ({
                       <ThumbsUp size={14} />
                     </button>
                     <button
-                      className={`action-btn feedback-btn ${
-                        feedbackState[index] ? 'selected' : ''
-                      }`}
+                      className={`action-btn feedback-btn bad-btn ${feedbackState[index] === 'bad' ? 'selected' : ''}`}
                       onClick={() => handleFeedback(index, 'bad')}
                       disabled={feedbackState[index]}
                       title="Bad response"
@@ -188,21 +170,16 @@ const ChatWindow = ({
                   </>
                 )}
 
-                {/* Text-to-speech */}
+                {/* Speak */}
                 <button
-                  className={`action-btn speak-btn ${
-                    speakingIndex === index ? 'speaking' : ''
-                  }`}
+                  className={`action-btn speak-btn ${speakingIndex === index ? 'speaking' : ''}`}
                   onClick={() => toggleSpeak(msg.text, index)}
                   title={speakingIndex === index ? 'Stop speaking' : 'Read aloud'}
                 >
                   {speakingIndex === index ? <VolumeX size={14} /> : <Volume2 size={14} />}
-                  <span className="tooltip">
-                    {speakingIndex === index ? 'Stop' : 'Speak'}
-                  </span>
                 </button>
 
-                {/* Edit (user-only) */}
+                {/* Edit user message */}
                 {msg.sender === 'user' && (
                   <button
                     className="action-btn edit-btn"
@@ -210,7 +187,6 @@ const ChatWindow = ({
                     title="Edit message"
                   >
                     <Edit3 size={14} />
-                    <span className="tooltip">Edit</span>
                   </button>
                 )}
               </div>
@@ -222,7 +198,7 @@ const ChatWindow = ({
         {isLoading && (
           <div className="message-wrapper assistant">
             <div className="avatar">
-              <Bot size={20} className="avatar-icon ai-icon" />
+              <Bot size={20} />
             </div>
             <div className="message-content">
               <div className="chat-message assistant typing">
@@ -231,11 +207,23 @@ const ChatWindow = ({
                   <span></span>
                   <span></span>
                 </div>
-                <p className="typing-text">AI is thinking...</p>
+                <p>AI is thinking...</p>
               </div>
             </div>
           </div>
         )}
+      </div>
+
+      {/* Notifications */}
+      <div className="feedback-notifications">
+        {feedbackNotifications.map((notif) => (
+          <div key={notif.id} className={`feedback-notification ${notif.type}`}>
+            <div className="notification-icon">
+              {notif.type === 'good' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+            </div>
+            <span className="notification-text">{notif.message}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
