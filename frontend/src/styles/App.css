@@ -10,6 +10,7 @@ body {
     color: #e5e7eb;
     min-height: 100vh;
     overflow-x: hidden;
+    overflow-y: auto;
 }
 
 /* App Container */
@@ -23,7 +24,7 @@ body {
     flex-grow: 1;
     overflow-y: auto;
     -ms-overflow-style: none; /* IE and Edge */
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: thin; /* Firefox */
 }
 
 .app-content::-webkit-scrollbar {
@@ -118,7 +119,7 @@ body {
     background: #0f0f0f;
     padding: 2rem;
     position: relative;
-    overflow: hidden;
+    overflow-y: auto;
 }
 
 /* 3D Background Canvas */

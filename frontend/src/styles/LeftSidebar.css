@@ -1,0 +1,75 @@
+/* frontend/src/styles/LeftSidebar.css */
+
+.left-sidebar {
+  width: 240px;
+  height: 100vh;
+  background: #121212;
+  border-right: 1px solid #2a2a2a;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.sidebar-header h2 {
+  color: #f9fafb;
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.new-session-btn {
+  padding: 6px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.new-session-btn:hover {
+  background: #2563eb;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.session-item {
+  padding: 10px;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.session-item:hover {
+  background: #2d2d2e;
+}
+
+.session-item.active {
+  background: #3b82f6;
+  color: white;
+  font-weight: 600;
+}
+
+.no-sessions {
+  color: #6b7280;
+  text-align: center;
+  margin-top: 40px;
+  font-style: italic;
+}
