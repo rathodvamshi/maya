@@ -1,49 +1,19 @@
 # backend/requirements.txt
-# fastapi[all]
-# uvicorn[standard]
 
-# For password hashing
-# passlib[bcrypt]
-
-# For JWT creation and validation
-# python-jose[cryptography]
-
-# For managing environment variables
-# pydantic-settings
-
-# For MongoDB interaction
-# pymongo
-
-# --- AI Model Libraries ---
-# openai
-# google-generativeai
-# cohere
-# anthropic
-
-# For Redis (short-term memory & Celery broker)
-# redis
-
-# For Asynchronous Task Queue
-# celery
-# flower
-
-# For Robust Date Parsing
-# dateparser
-
-
-fastapi[all]
-uvicorn[standard]
-passlib[bcrypt]
-python-jose[cryptography]
-pydantic-settings
+fastapi
+uvicorn
 pymongo
-
-openai
+python-bson
+passlib[bcrypt]
+bcrypt==3.2.0
+python-jose[cryptography]
+pydantic
+pydantic-settings
+celery[redis]
+redis
+pinecone-client>=3.0.0,<4.0.0
+python-dotenv
 google-generativeai
 cohere
 anthropic
-
-redis
-celery
-flower
-dateparser
+eventlet  # <-- ADD THIS LINE

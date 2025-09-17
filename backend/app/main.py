@@ -2,33 +2,53 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, chat
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="Personal AI Assistant API")
+from app.routers import auth, chat, sessions
+from app.services import pinecone_service # Import the service
 
-# --- CORS Configuration ---
-# This is the crucial part to fix the "Network Error".
-# It explicitly gives permission to your frontend (running on http://localhost:3000)
-# to make requests to this backend.
+# --- NEW: Lifespan Management ---
+# This is the modern way to handle startup and shutdown events in FastAPI.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Code to run on application startup
+    print("--- Application starting up... ---")
+    pinecone_service.initialize_pinecone()
+    print("--- Startup complete. ---")
+    yield
+    # Code to run on application shutdown
+    print("--- Application shutting down... ---")
 
-origins = [
-    "http://localhost:3000",
-]
+# Pass the lifespan manager to the FastAPI app
+app = FastAPI(
+    title="Personal AI Assistant API",
+    lifespan=lifespan
+)
+
+# ======================================================
+# CORS CONFIGURATION
+# ======================================================
+origins = ["http://localhost:3000"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allows your React app's origin
-    allow_credentials=True, # Allows cookies/tokens to be sent
-    allow_methods=["*"],    # Allows all request methods (POST, GET, etc.)
-    allow_headers=["*"],    # Allows all request headers
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-
-# Include the application routers
+# ======================================================
+# ROUTERS
+# ======================================================
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(sessions.router)
 
+# ======================================================
+# ROOT ENDPOINT
+# ======================================================
 @app.get("/", tags=["Root"])
 def read_root():
-    """A simple endpoint to confirm the API is running."""
+    """Simple endpoint to confirm API is running."""
     return {"status": "API is running"}

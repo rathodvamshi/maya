@@ -3,8 +3,8 @@ import '../styles/RightSidebar.css';
 
 const RightSidebar = ({
   currentUserEmail,
-  pendingTasks,
-  completedTasks,
+  pendingTasks = [],
+  completedTasks = [],
   handleOpenModal,
   handleMarkAsDone,
   handleClearChat
@@ -26,7 +26,7 @@ const RightSidebar = ({
           <line x1="16" y1="17" x2="8" y2="17"></line>
           <polyline points="10,9 9,10 7,8"></polyline>
         </svg>
-        <span className="task-count">{pendingTasks.length}</span>
+  <span className="task-count">{pendingTasks ? pendingTasks.length : 0}</span>
       </div>
       <div className="sidebar-icon clear-icon" title="Clear Chat" onClick={handleClearChat}>
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -44,12 +44,12 @@ const RightSidebar = ({
       </div>
       <div className="sidebar-section">
         <div className="sidebar-title">
-          <h3>Upcoming Tasks ({pendingTasks.length})</h3>
+          <h3>Upcoming Tasks ({pendingTasks ? pendingTasks.length : 0})</h3>
           <button onClick={() => handleOpenModal()} className="add-task-btn-icon" title="Add new task">+</button>
         </div>
         <div className="task-list-container">
           <ul className="task-list">
-            {pendingTasks.length > 0 ? (
+            {pendingTasks && pendingTasks.length > 0 ? (
               pendingTasks.map(task => (
                 <li key={task.id} className="task-item">
                   <div className="task-details">
@@ -76,7 +76,7 @@ const RightSidebar = ({
         <h3 className="sidebar-title">Completed Tasks</h3>
         <div className="task-list-container">
           <ul className="task-list completed-tasks">
-            {completedTasks.length > 0 ? (
+            {completedTasks && completedTasks.length > 0 ? (
               completedTasks.map(task => (
                 <li key={task.id} className="task-item completed">
                   <span className="task-content">{task.content}</span>

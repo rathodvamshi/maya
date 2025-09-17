@@ -1,269 +1,240 @@
-    import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-    import chatService from '../services/chatService';
-    import authService from '../services/auth';
-    import '../styles/Dashboard.css';
-    import ChatWindow from './ChatWindow';
-    import RightSidebar from './RightSidebar';
-    import LeftSidebar from './LeftSidebar';
+// frontend/src/components/Dashboard.js
 
-    // --- Reusable Components ---
-    const TaskModal = ({ task, onSave, onClose }) => {
-        const [content, setContent] = useState(task ? task.content : "");
-        const [dueDate, setDueDate] = useState(task ? task.due_date : "");
+import React, { useEffect, useReducer, useCallback, useMemo } from 'react';
+// ... (all other imports remain the same)
+import chatService from '../services/chatService';
+import sessionService from '../services/sessionService';
+import authService from '../services/auth';
+import '../styles/Dashboard.css';
 
-        const handleSubmit = (e) => {
-            e.preventDefault();
-            onSave({ ...task, content, due_date: dueDate });
-        };
+import ChatWindow from './ChatWindow';
+import RightSidebar from './RightSidebar';
+import LeftSidebar from './LeftSidebar';
+import LoadingSpinner from './LoadingSpinner';
+import ErrorDisplay from './ErrorDisplay';
+import ChatSkeletonLoader from './ChatSkeletonLoader';
 
-        return (
-            <div className="task-modal-overlay" onClick={onClose}>
-                <div className="task-modal-content" onClick={(e) => e.stopPropagation()}>
-                    <h3>
-                        {task ? "Edit Task" : (
-                            <span className="modal-title-with-icon">
-                                Create New Task
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="calendar-icon">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                                </svg>
-                            </span>
-                        )}
-                    </h3>
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group">
-                            <label>Task</label>
-                            <input 
-                                type="text" 
-                                value={content} 
-                                onChange={(e) => setContent(e.target.value)} 
-                                placeholder="What needs to be done?" 
-                                required 
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Due Date</label>
-                            <input 
-                                type="text" 
-                                value={dueDate} 
-                                onChange={(e) => setDueDate(e.target.value)} 
-                                placeholder="e.g., Tomorrow at 5pm" 
-                                required 
-                            />
-                        </div>
-                        <div className="modal-actions">
-                            <button type="button" onClick={onClose} className="cancel-btn">Cancel</button>
-                            <button type="submit" className="save-btn">Save Task</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        );
-    };
 
-    const LoadingSpinner = () => (
-        <div className="loading-container">
-            <div className="spinner"></div>
-            <p>Loading Your Dashboard...</p>
-        </div>
-    );
+// --- The Reducer and Custom Hook sections remain completely the same ---
+// (No changes needed there)
 
-    const ErrorDisplay = ({ message, onRetry }) => (
-        <div className="loading-container">
-            <p className="error-message">Sorry, something went wrong.</p>
-            <p className="error-detail">{message}</p>
-            <button onClick={onRetry} className="retry-btn">Try Again</button>
-        </div>
-    );
+const initialState = {
+  messages: [],
+  sessions: [],
+  activeSessionId: null,
+  input: '',
+  status: 'idle', 
+  error: null,
+  currentUserEmail: '',
+  pendingTasks: [],
+  currentPage: 1,
+  hasMoreMessages: true,
+};
 
-    // --- Main Dashboard Component ---
-    const Dashboard = () => {
-        const initialMessage = useMemo(
-            () => ({ sender: 'assistant', text: 'Hello! How can I assist you today?' }),
-            []
-        );
+function chatReducer(state, action) {
+  // ... (no changes in the reducer logic)
+  switch (action.type) {
+    case 'INITIAL_LOAD_START':
+      return { ...state, status: 'pageLoading' };
+    case 'INITIAL_LOAD_SUCCESS':
+      return { ...state, status: 'idle', sessions: action.payload.sessions, messages: [action.payload.initialMessage] };
+    case 'INITIAL_LOAD_ERROR':
+      return { ...state, status: 'error', error: action.payload };
+    
+    case 'SELECT_SESSION_START':
+      return { ...state, status: 'sessionLoading', activeSessionId: action.payload, messages: [], currentPage: 1, hasMoreMessages: true };
+    case 'SELECT_SESSION_SUCCESS':
+      return { ...state, status: 'idle', messages: action.payload.messages || [], hasMoreMessages: action.payload.hasMore };
+    case 'SELECT_SESSION_ERROR':
+      return { ...state, status: 'error', error: action.payload };
 
-        const [messages, setMessages] = useState([]);
-        const [input, setInput] = useState('');
-        const [isLoading, setIsLoading] = useState(false);
-        const [isPageLoading, setIsPageLoading] = useState(true);
-        const [error, setError] = useState(null);
-        const [currentUserEmail, setCurrentUserEmail] = useState('');
-        const [pendingTasks, setPendingTasks] = useState([]);
-        const [completedTasks, setCompletedTasks] = useState([]);
-        const [isModalOpen, setIsModalOpen] = useState(false);
-        const [taskToEdit, setTaskToEdit] = useState(null);
+    case 'SEND_MESSAGE_START':
+      return { ...state, status: 'loading', input: '', messages: [...state.messages, action.payload.userMessage] };
+    case 'SEND_MESSAGE_SUCCESS':
+      return { ...state, status: 'idle', messages: [...state.messages, action.payload.assistantMessage] };
+    case 'SEND_MESSAGE_ERROR':
+      return { ...state, status: 'error', error: action.payload, messages: [...state.messages, { sender: 'assistant', text: 'Sorry, an error occurred.' }] };
+    
+    case 'NEW_SESSION_CREATED':
+      return { ...state, activeSessionId: action.payload.sessionId, sessions: action.payload.updatedSessions };
 
-        // chatWindowRef moved to ChatWindow component
+    case 'NEW_CHAT':
+      return { ...state, activeSessionId: null, messages: action.payload, status: 'idle' };
 
-        const loadInitialData = useCallback(async () => {
-            setIsPageLoading(true);
-            setError(null);
-            try {
-                const [historyResponse, pendingResponse, completedResponse] = await Promise.all([
-                    chatService.getHistory(),
-                    chatService.getTasks(),
-                    chatService.getTaskHistory()
-                ]);
-                setMessages(historyResponse.data && historyResponse.data.length > 0 ? historyResponse.data : [initialMessage]);
-                setPendingTasks(pendingResponse.data);
-                setCompletedTasks(completedResponse.data);
-            } catch (err) {
-                console.error("Failed to load initial data:", err);
-                setError("Could not connect to the server. Please check your connection and try again.");
-            } finally {
-                setIsPageLoading(false);
-            }
-        }, [initialMessage]);
+    case 'UPDATE_SESSIONS':
+      return { ...state, sessions: action.payload };
+    
+    case 'SET_INPUT':
+      return { ...state, input: action.payload };
 
-        useEffect(() => {
-            const user = authService.getCurrentUser();
-            if (user && user.access_token) {
-                try {
-                    const tokenData = JSON.parse(atob(user.access_token.split('.')[1]));
-                    setCurrentUserEmail(tokenData.sub);
-                } catch (e) { console.error("Failed to decode token:", e); }
-            }
-            loadInitialData();
-        }, [loadInitialData]);
+    case 'SET_USER_EMAIL':
+      return { ...state, currentUserEmail: action.payload };
+      
+    default:
+      throw new Error(`Unhandled action type: ${action.type}`);
+  }
+}
 
-        useEffect(() => {
-            // Scrolling handled in ChatWindow component
-        }, [messages]);
-
-        const fetchAllTasks = async () => {
-            try {
-                const [pendingResponse, completedResponse] = await Promise.all([
-                    chatService.getTasks(),
-                    chatService.getTaskHistory()
-                ]);
-                setPendingTasks(pendingResponse.data);
-                setCompletedTasks(completedResponse.data);
-            } catch (error) {
-                console.error("Failed to fetch tasks:", error);
-            }
-        };
-
-        const handleSendMessage = async (e) => {
-            e.preventDefault();
-            if (!input.trim() || isLoading) return;
-            const userMessage = { sender: 'user', text: input };
-            setMessages(prev => [...prev, userMessage]);
-            const currentInput = input;
-            setInput('');
-            setIsLoading(true);
-            try {
-                const response = await chatService.sendMessage(currentInput);
-                const assistantMessage = { sender: 'assistant', text: response.data.response };
-                setMessages(prev => [...prev, assistantMessage]);
-                await fetchAllTasks();
-            } catch (error) {
-                console.error("Error sending message:", error);
-                const errorMessage = { sender: 'assistant', text: 'Sorry, I encountered an error. Please try again.' };
-                setMessages(prev => [...prev, errorMessage]);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        const handleOpenModal = (task = null) => {
-            setTaskToEdit(task);
-            setIsModalOpen(true);
-        };
-
-        const handleCloseModal = () => {
-            setIsModalOpen(false);
-            setTaskToEdit(null);
-        };
-
-        const handleSaveTask = async (taskData) => {
-            try {
-                if (taskToEdit) {
-                    await chatService.updateTask(taskToEdit.id, { content: taskData.content, due_date: taskData.due_date });
-                } else {
-                    await chatService.createTask(taskData.content, taskData.due_date);
-                }
-                await fetchAllTasks();
-                handleCloseModal();
-            } catch (error) {
-                console.error("Failed to save task:", error);
-            }
-        };
-
-        const handleMarkAsDone = async (taskId) => {
-            try {
-                await chatService.markTaskAsDone(taskId);
-                await fetchAllTasks();
-            } catch (error) {
-                console.error("Failed to mark task as done:", error);
-            }
-        };
+const useChatManager = ({ state, dispatch }) => {
+    // ... (no changes in the custom hook logic)
+    const initialMessage = useMemo(
+        () => ({ sender: 'assistant', text: 'Hello! How can I assist you today?' }),
+        []
+      );
+    
+      const loadSessions = useCallback(async () => {
+        try {
+          const response = await sessionService.getSessions();
+          dispatch({ type: 'UPDATE_SESSIONS', payload: response.data });
+          return response.data;
+        } catch (err) {
+          console.error("Failed to load sessions:", err);
+          throw new Error("Could not load sessions.");
+        }
+      }, [dispatch]);
+    
+      const loadInitialData = useCallback(async () => {
+        dispatch({ type: 'INITIAL_LOAD_START' });
+        try {
+          const sessions = await loadSessions();
+          dispatch({ type: 'INITIAL_LOAD_SUCCESS', payload: { sessions, initialMessage } });
+        } catch (err) {
+          dispatch({ type: 'INITIAL_LOAD_ERROR', payload: err.message });
+        }
+      }, [dispatch, loadSessions, initialMessage]);
+    
+      const handleSelectSession = useCallback(async (sessionId) => {
+        if (!sessionId || sessionId === state.activeSessionId) return;
+        dispatch({ type: 'SELECT_SESSION_START', payload: sessionId });
+        try {
+          const response = await sessionService.getSessionMessages(sessionId, 1);
+          const hasMore = (response.data.messages?.length || 0) < response.data.totalMessages;
+          dispatch({ type: 'SELECT_SESSION_SUCCESS', payload: { messages: response.data.messages, hasMore } });
+        } catch (err) {
+          console.error("Failed to load session:", err);
+          dispatch({ type: 'SELECT_SESSION_ERROR', payload: 'Could not load chat history.' });
+        }
+      }, [state.activeSessionId, dispatch]);
+    
+      const handleNewChat = useCallback(() => {
+        dispatch({ type: 'NEW_CHAT', payload: [initialMessage] });
+      }, [dispatch, initialMessage]);
+    
+      const handleDeleteSession = useCallback(async (sessionId) => {
+        try {
+          await sessionService.deleteSession(sessionId);
+          if (state.activeSessionId === sessionId) {
+            handleNewChat();
+          }
+          await loadSessions();
+        } catch (err) {
+          dispatch({ type: 'INITIAL_LOAD_ERROR', payload: 'Could not delete the session.' });
+        }
+      }, [state.activeSessionId, dispatch, loadSessions, handleNewChat]);
+    
+      const handleSendMessage = useCallback(async (e) => {
+        e.preventDefault();
+        if (!state.input.trim() || state.status === 'loading') return;
+    
+        const userMessage = { sender: 'user', text: state.input };
+        dispatch({ type: 'SEND_MESSAGE_START', payload: { userMessage } });
         
-        const handleClearChat = async () => {
-            if (window.confirm("Are you sure you want to delete your entire chat history?")) {
-                try {
-                    await chatService.clearHistory();
-                    setMessages([initialMessage]);
-                } catch (error) {
-                    console.error("Failed to clear chat history:", error);
-                }
-            }
-        };
-
-        if (isPageLoading) {
-            return <LoadingSpinner />;
+        try {
+          if (!state.activeSessionId) {
+            const newChatResponse = await chatService.startNewChat(userMessage.text);
+            const assistantMessage = { sender: 'assistant', text: newChatResponse.data.response_text };
+            const updatedSessions = await loadSessions();
+            dispatch({ type: 'NEW_SESSION_CREATED', payload: { sessionId: newChatResponse.data.session_id, updatedSessions } });
+            dispatch({ type: 'SEND_MESSAGE_SUCCESS', payload: { assistantMessage } });
+          } else {
+            const continueChatResponse = await chatService.sendMessage(state.activeSessionId, userMessage.text);
+            const assistantMessage = { sender: 'assistant', text: continueChatResponse.data.response_text };
+            dispatch({ type: 'SEND_MESSAGE_SUCCESS', payload: { assistantMessage } });
+          }
+        } catch (error) {
+          console.error("Error sending message:", error);
+          dispatch({ type: 'SEND_MESSAGE_ERROR', payload: error.message });
         }
+      }, [state.activeSessionId, state.input, state.status, dispatch, loadSessions]);
+      
+      return useMemo(() => ({
+        loadInitialData,
+        handleSelectSession,
+        handleNewChat,
+        handleDeleteSession,
+        handleSendMessage,
+      }), [loadInitialData, handleSelectSession, handleNewChat, handleDeleteSession, handleSendMessage]);
+};
 
-        if (error) {
-            return <ErrorDisplay message={error} onRetry={loadInitialData} />;
+
+// ==================================================
+// 🔹 Main Dashboard Component
+// ==================================================
+
+const Dashboard = () => {
+  const [state, dispatch] = useReducer(chatReducer, initialState);
+  const handlers = useChatManager({ state, dispatch });
+  
+  const { 
+    status, error, sessions, activeSessionId, 
+    messages, input, currentUserEmail, pendingTasks 
+  } = state;
+
+  // FIXED: This useEffect hook now has an empty dependency array `[]`.
+  // This GUARANTEES it only runs ONCE when the component first mounts.
+  // This prevents the infinite loop.
+  useEffect(() => {
+    const user = authService.getCurrentUser();
+    if (user?.access_token) {
+      try {
+        const tokenData = JSON.parse(atob(user.access_token.split('.')[1]));
+        dispatch({ type: 'SET_USER_EMAIL', payload: tokenData.sub });
+      } catch (e) { console.error("Failed to decode token:", e); }
+    }
+    handlers.loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // <-- The fix is here. The empty array means "run once on mount".
+
+  if (status === 'pageLoading') return <LoadingSpinner />;
+  if (status === 'error') return <ErrorDisplay message={error} onRetry={handlers.loadInitialData} />;
+
+  return (
+    <div className="dashboard-container">
+      <LeftSidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onNewChat={handlers.handleNewChat}
+        onSelectSession={handlers.handleSelectSession}
+        onDeleteSession={handlers.handleDeleteSession}
+      />
+      <main className="dashboard-main">
+        {status === 'sessionLoading'
+          ? <ChatSkeletonLoader />
+          : <ChatWindow
+              messages={messages}
+              isLoading={status === 'loading'}
+            />
         }
+        <form className="chat-input-area" onSubmit={handlers.handleSendMessage}>
+          <input
+            type="text"
+            className="chat-input"
+            placeholder="Type your message here..."
+            value={input}
+            onChange={(e) => dispatch({ type: 'SET_INPUT', payload: e.target.value })}
+            disabled={status === 'loading'}
+          />
+          <button type="submit" className="send-button" disabled={status === 'loading'}>
+            {status === 'loading' ? 'Sending...' : 'Send'}
+          </button>
+        </form>
+      </main>
+      <RightSidebar 
+        currentUserEmail={currentUserEmail} 
+        pendingTasks={pendingTasks} 
+      />
+    </div>
+  );
+};
 
-        return (
-            <>
-                {isModalOpen && <TaskModal task={taskToEdit} onSave={handleSaveTask} onClose={handleCloseModal} />}
-                <div className="dashboard-container" style={{ display: 'flex', flexDirection: 'row' }}>
-                    <LeftSidebar
-                        onNewChat={() => {}}
-                        onClearChat={handleClearChat}
-                        onDeleteSession={() => {}}
-                        onProfileClick={() => {}}
-                        taskCount={pendingTasks.length}
-                    />
-                    <main className="dashboard-main" style={{ flex: 1 }}>
-                        <ChatWindow messages={messages} isLoading={isLoading} />
-                        <div className="chat-input-area">
-                            <input 
-                                type="text" 
-                                className="chat-input" 
-                                placeholder="Type your message here..." 
-                                value={input} 
-                                onChange={(e) => setInput(e.target.value)} 
-                                disabled={isLoading} 
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
-                            />
-                            <button 
-                                type="button" 
-                                className="send-button" 
-                                disabled={isLoading}
-                                onClick={handleSendMessage}
-                            >
-                                {isLoading ? 'Sending...' : 'Send'}
-                            </button>
-                        </div>
-                    </main>
-                    <RightSidebar
-                        currentUserEmail={currentUserEmail}
-                        pendingTasks={pendingTasks}
-                        completedTasks={completedTasks}
-                        handleOpenModal={handleOpenModal}
-                        handleMarkAsDone={handleMarkAsDone}
-                        handleClearChat={handleClearChat}
-                    />
-                </div>
-            </>
-        );
-    };
-
-    export default Dashboard;
+export default Dashboard;

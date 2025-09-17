@@ -1,65 +1,109 @@
 import React, { useState } from 'react';
+import { Plus, MessageSquare, Trash2, ChevronRight, Sparkles, Clock, Star } from 'lucide-react';
 import '../styles/LeftSidebar.css';
 
-const chatSessions = [
-  { id: 1, name: 'General', active: true },
-  { id: 2, name: 'Project', active: false },
-  { id: 3, name: 'Support', active: false }
-];
+const LeftSidebar = ({
+  sessions = [],
+  activeSessionId,
+  onNewChat,
+  onSelectSession,
+  onDeleteSession,
+}) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [hoveredSession, setHoveredSession] = useState(null);
 
-const LeftSidebar = ({ onNewChat, onClearChat, onDeleteSession, onProfileClick, taskCount = 0 }) => {
-  const [expanded, setExpanded] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const handleDelete = (e, sessionId) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this chat session?')) {
+      onDeleteSession(sessionId);
+    }
+  };
+
+  const toggleSidebar = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  const displaySessions = sessions.length > 0 ? sessions : [
+  ];
 
   return (
-    <aside
-      className={`left-sidebar${expanded ? ' expanded' : ''}`}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => { setExpanded(false); setShowProfile(false); }}
-    >
-      <div className="sidebar-icons">
-        <div className="sidebar-icon profile-icon" title="Profile" onClick={() => setShowProfile(!showProfile)}>
-          <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>
+    <aside className={`left-sidebar ${isExpanded ? 'expanded' : 'collapsed'}`}>
+      {/* Toggle Button */}
+      <button className="sidebar-toggle" onClick={toggleSidebar}>
+        <ChevronRight className={`toggle-icon ${isExpanded ? 'rotated' : ''}`} size={16} />
+      </button>
+
+      {/* Header */}
+      <div className="sidebar-header">
+        <button className="new-chat-btn" onClick={onNewChat}>
+          <div className="btn-icon-wrapper">
+            <Plus className="btn-icon" size={18} />
+            <Sparkles className="sparkle-icon" size={12} />
+          </div>
+          <span className="btn-text">New Chat</span>
+        </button>
+      </div>
+
+      {/* Navigation */}
+      <nav className="session-nav">
+        <div className="nav-header">
+          <Clock size={16} className="nav-icon" />
+          <span className="nav-title">Recent Chats</span>
+          <div className="nav-badge">{displaySessions.length}</div>
         </div>
-        <div className="sidebar-icon" title="New Chat" onClick={onNewChat}>
-          <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        </div>
-        <div className="sidebar-icon" title="Clear Chat" onClick={onClearChat}>
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-        </div>
-        <div className="sidebar-icon task-icon" title="Tasks">
-          <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          {taskCount > 0 && <span className="task-count-badge">{taskCount}</span>}
+
+        <ul className="session-list">
+          {displaySessions.length > 0 ? (
+            displaySessions.map((session) => (
+              <li
+                key={session.id}
+                className={`session-item ${session.id === activeSessionId ? 'active' : ''}`}
+                onClick={() => onSelectSession(session.id)}
+                onMouseEnter={() => setHoveredSession(session.id)}
+                onMouseLeave={() => setHoveredSession(null)}
+              >
+                <div className="session-main">
+                  <div className="session-icon-wrapper">
+                    <MessageSquare size={16} className="session-icon" />
+                    {session.isStarred && (
+                      <Star size={12} className="star-icon" />
+                    )}
+                  </div>
+
+                  <div className="session-content">
+                    <span className="session-title">{session.title}</span>
+                    <span className="session-timestamp">{session.timestamp}</span>
+                  </div>
+
+                  <button
+                    className="delete-session-btn"
+                    title="Delete Session"
+                    onClick={(e) => handleDelete(e, session.id)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
+                <div className="session-glow"></div>
+              </li>
+            ))
+          ) : (
+            <li className="no-sessions">
+              <MessageSquare size={24} className="empty-icon" />
+              <span>No recent chats</span>
+              <p>Start a conversation to see your chat history here</p>
+            </li>
+          )}
+        </ul>
+      </nav>
+
+      {/* Footer */}
+      <div className="sidebar-footer">
+        <div className="upgrade-prompt">
+          <Sparkles size={16} />
+          <span>Upgrade to Pro</span>
         </div>
       </div>
-      {expanded && (
-        <div className="sidebar-content">
-          <h3 className="sidebar-title">Chats</h3>
-          <ul className="chat-session-list">
-            {chatSessions.map(session => (
-              <li key={session.id} className={`chat-session-item${session.active ? ' active' : ''}`}>
-                <span className="chat-session-icon">
-                  <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                </span>
-                <span className="chat-session-name">{session.name}</span>
-                <button className="delete-session-btn" title="Delete" onClick={() => onDeleteSession(session.id)}>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {showProfile && expanded && (
-        <div className="profile-popup">
-          <div className="profile-popup-content">
-            <div className="profile-logo">👤</div>
-            <button onClick={onProfileClick}>Profile</button>
-            <button>Settings</button>
-            <button>Logout</button>
-          </div>
-        </div>
-      )}
     </aside>
   );
 };
