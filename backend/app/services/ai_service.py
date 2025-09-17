@@ -32,16 +32,19 @@ def _try_gemini(prompt: str):
             current_gemini_key_index = (current_gemini_key_index + 1) % len(gemini_keys)
             if current_gemini_key_index == start_index:
                 print("All Gemini keys failed.")
-                raise  # Re-raise the last exception if all keys have been tried
+                # Add more descriptive error for chat workflow
+                raise RuntimeError(f"All Gemini API keys failed. Last error: {e}. Please check your quota or API keys.")
 
 def _try_cohere(prompt: str):
     """Gets a response from Cohere."""
     try:
-        response = cohere_client.chat(message=prompt, model="command-r")
+        # Use a supported Cohere model (see docs for latest options)
+        response = cohere_client.chat(message=prompt, model="command-r-08-2024")
         return response.text
     except Exception as e:
         print(f"Cohere API failed. Error: {e}")
-        raise
+        # Add more descriptive error for chat workflow
+        raise RuntimeError(f"Cohere API error: {e}. Please check your model name or API quota.")
 
 def _try_anthropic(prompt: str):
     """Gets a response from Anthropic (Claude)."""
@@ -54,7 +57,8 @@ def _try_anthropic(prompt: str):
         return message.content[0].text
     except Exception as e:
         print(f"Anthropic API failed. Error: {e}")
-        raise
+        # Add more descriptive error for chat workflow
+        raise RuntimeError(f"Anthropic API error: {e}. Please check your credit balance or API key.")
 
 # --- Unified Generation Function ---
 # This is the only function our routers will need to call.
