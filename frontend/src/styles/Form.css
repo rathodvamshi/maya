@@ -1,175 +1,120 @@
-* {
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #0f0f0f;
-    color: #e5e7eb;
-    min-height: 100vh;
-    overflow: hidden;
-}
-
-/* Form Screen */
 .form-screen {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    background: #0f0f0f;
-    background-image: linear-gradient(to top right, rgba(26, 26, 26, 0.8), #0f0f0f);
-    animation: fadeIn 0.5s ease-out;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e6f0fa, #ffffff);
+  padding: 20px;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* Form Container */
 .form-container {
-    width: 100%;
-    max-width: 400px;
-    padding: 2.5rem;
-    background: rgba(26, 26, 26, 0.95);
-    border-radius: 12px;
-    border: 1px solid #2a2a2a;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    backdrop-filter: blur(10px);
-    animation: modalFadeIn 0.3s ease-out;
-}
-
-@keyframes modalFadeIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
+  max-width: 400px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  animation: fadeIn 0.5s ease-in-out;
 }
 
 .form-container h2 {
-    font-size: 2rem;
-    font-weight: 700;
-    text-align: center;
-    color: #f9fafb;
-    margin-bottom: 2rem;
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 1.5rem;
 }
 
-/* Form Group */
 .form-group {
-    margin-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .form-group label {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #e5e7eb;
-    margin-bottom: 0.5rem;
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0.5rem;
 }
 
-/* Form Input */
 .form-input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-    background: #0f0f0f;
-    border: 1px solid #374151;
-    border-radius: 6px;
-    color: #e5e7eb;
-    outline: none;
-    transition: all 0.2s ease;
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
 .form-input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-input::placeholder {
-    color: #6b7280;
+.message.error-message {
+  color: #e53e3e;
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 1rem 0;
 }
 
-/* Form Button */
 .form-button {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #ffffff;
-    background: #3b82f6;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-top: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background-color: #3b82f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s;
 }
 
 .form-button:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  background-color: #2563eb;
 }
 
-/* Message */
-.message {
-    padding: 0.75rem;
-    font-size: 0.875rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-    text-align: center;
-}
-
-.error-message {
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid #ef4444;
-}
-
-.success-message {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid #10b981;
-}
-
-/* Form Switch Link */
 .form-switch-link {
-    margin-top: 1.5rem;
-    text-align: center;
-    font-size: 0.875rem;
-    color: #9ca3af;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin-top: 1rem;
 }
 
 .form-switch-link a {
-    color: #3b82f6;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all 0.2s ease;
+  color: #3b82f6;
+  text-decoration: none;
+  font-weight: 500;
 }
 
 .form-switch-link a:hover {
-    color: #2563eb;
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
-/* Scrollbar Styling */
-.form-screen::-webkit-scrollbar {
-    width: 6px;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.form-screen::-webkit-scrollbar-track {
-    background: #1a1a1a;
-}
+@media (max-width: 480px) {
+  .form-container {
+    padding: 1.5rem;
+  }
 
-.form-screen::-webkit-scrollbar-thumb {
-    background: #374151;
-    border-radius: 3px;
-}
+  .form-container h2 {
+    font-size: 1.5rem;
+  }
 
-.form-screen::-webkit-scrollbar-thumb:hover {
-    background: #4b5563;
-}
-
-.form-screen {
-    scrollbar-width: thin;
-    scrollbar-color: #374151 #1a1a1a;
+  .form-input,
+  .form-button {
+    font-size: 0.9rem;
+  }
 }

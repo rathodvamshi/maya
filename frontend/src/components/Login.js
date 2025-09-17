@@ -14,7 +14,7 @@ const Login = () => {
         try {
             const response = await authService.login(email, password);
             if (response.data.access_token) {
-                authService.storeTokens(response.data);
+                authService.storeTokens({ ...response.data, email });
                 window.location.href = "/dashboard";
             }
         } catch (error) {

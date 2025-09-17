@@ -1,75 +1,171 @@
-/* frontend/src/styles/LeftSidebar.css */
-
+/* =========================
+   LEFT SIDEBAR STYLES
+   ========================= */
 .left-sidebar {
-  width: 240px;
-  height: 100vh;
-  background: #121212;
-  border-right: 1px solid #2a2a2a;
-  padding: 20px;
+  position: fixed;
+  left: 0;
+  top: 60px;
+  bottom: 0;
+  border-right: 2px solid rgb(77, 78, 110);
+  width: 64px; /* collapsed width */
+  background: linear-gradient(180deg, #171717 0%, #3e3e40 100%);
+  color: #fff;
+  transition: width 0.3s ease, box-shadow 0.3s ease;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.25);
 }
 
-.sidebar-header {
+/* Expanded */
+.left-sidebar.expanded {
+  width: 290px;
+}
+
+/* Sidebar Icons */
+.sidebar-icons {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 20px;
+  padding: 12px 0;
+  gap: 16px;
 }
 
-.sidebar-header h2 {
-  color: #f9fafb;
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-}
-
-.new-session-btn {
-  padding: 6px 12px;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-}
-
-.new-session-btn:hover {
-  background: #2563eb;
-}
-
-.session-list {
+.sidebar-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.session-item {
-  padding: 10px;
-  border-radius: 6px;
-  background: #1a1a1a;
-  color: #d1d5db;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
 }
 
-.session-item:hover {
-  background: #2d2d2e;
+.sidebar-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: scale(1.05);
 }
 
-.session-item.active {
-  background: #3b82f6;
-  color: white;
+.sidebar-icon.active {
+  background: rgba(0, 123, 255, 0.2);
+  color: #4da6ff;
+  box-shadow: inset 0 0 6px rgba(0, 123, 255, 0.4);
+}
+
+/* Task Badge */
+.task-count-badge {
+  background: #ff4b5c;
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 12px;
+  position: absolute;
+  margin-left: 22px;
+  margin-top: -28px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Sidebar Content */
+.sidebar-content {
+  margin-top: 20px;
+  padding: 0 16px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.left-sidebar.expanded .sidebar-content {
+  opacity: 1;
+}
+
+.sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #ccc;
+}
+
+/* Chat Sessions */
+.chat-session-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.chat-session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #ccc;
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.chat-session-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.chat-session-item.active {
+  background: rgba(0, 123, 255, 0.15);
+  color: #4da6ff;
   font-weight: 600;
 }
 
-.no-sessions {
-  color: #6b7280;
+.delete-session-btn {
+  background: none;
+  border: none;
+  color: #777;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.25s ease;
+}
+.delete-session-btn:hover {
+  color: #ff4b5c;
+}
+
+/* Profile Popup */
+.profile-popup {
+  position: absolute;
+  left: 240px;
+  top: 60px;
+  background: #2a2a40;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  padding: 12px;
+  animation: fadeIn 0.25s ease;
+}
+.profile-popup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.profile-popup-content button {
+  background: #3a3a55;
+  border: none;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.25s ease;
+}
+.profile-popup-content button:hover {
+  background: #4a4a70;
+}
+.profile-logo {
+  font-size: 28px;
   text-align: center;
-  margin-top: 40px;
-  font-style: italic;
+  margin-bottom: 8px;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
