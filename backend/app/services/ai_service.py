@@ -2,7 +2,8 @@
 
 import time
 import logging
-from typing import List, Optional
+import json
+from typing import List, Optional, Dict, Any
 import google.generativeai as genai
 import cohere
 import anthropic
@@ -41,7 +42,7 @@ def _is_provider_available(name: str) -> bool:
     return True
 
 # =====================================================
-# 🔹 Gemini Helper with Key Rotation
+# 🔹 Provider Helpers
 # =====================================================
 def _try_gemini(prompt: str) -> str:
     """
@@ -66,32 +67,24 @@ def _try_gemini(prompt: str) -> str:
             if current_gemini_key_index == start_index:
                 raise RuntimeError("All Gemini API keys failed.")
 
-# =====================================================
-# 🔹 Cohere Helper
-# =====================================================
 def _try_cohere(prompt: str) -> str:
     """
     Generates text using Cohere API.
     """
     if not cohere_client:
         raise RuntimeError("Cohere API client not configured.")
-
     try:
         response = cohere_client.chat(message=prompt, model="command-r-08-2024")
         return response.text
     except Exception as e:
         raise RuntimeError(f"Cohere API error: {e}")
 
-# =====================================================
-# 🔹 Anthropic Helper
-# =====================================================
 def _try_anthropic(prompt: str) -> str:
     """
     Generates text using Anthropic Claude API.
     """
     if not anthropic_client:
         raise RuntimeError("Anthropic API client not configured.")
-
     try:
         message = anthropic_client.messages.create(
             model="claude-3-haiku-20240307",
@@ -203,3 +196,47 @@ def summarize_text(text: str) -> str:
             FAILED_PROVIDERS[provider] = time.time()
 
     return "❌ Failed to generate summary. All AI services unavailable."
+
+# =====================================================
+# 🔹 Fact Extraction
+# =====================================================
+def extract_facts_from_text(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Extracts structured facts (entities and relationships) from a conversation transcript.
+    Returns a JSON dictionary with keys "entities" and "relationships".
+    """
+    extraction_prompt = f"""
+    You are a highly intelligent data extraction agent. Analyze the following conversation
+    transcript. Extract key entities and relationships. Present your findings in JSON format:
+
+    - "entities": list of objects with "name" and "label" (e.g., PERSON, CITY, TOPIC, PREFERENCE)
+    - "relationships": list of objects with "source", "target", and "type" (e.g., LIKES, PLANS_TRIP_TO)
+
+    Example:
+    Transcript: "Hi, my name is Alex. I want to plan a trip to Paris. I really love museums."
+    JSON output:
+    {{
+      "entities": [
+        {{"name": "Alex", "label": "PERSON"}},
+        {{"name": "Paris", "label": "CITY"}},
+        {{"name": "Museums", "label": "PREFERENCE"}}
+      ],
+      "relationships": [
+        {{"source": "Alex", "target": "Paris", "type": "PLANS_TRIP_TO"}},
+        {{"source": "Alex", "target": "Museums", "type": "HAS_PREFERENCE_FOR"}}
+      ]
+    }}
+
+    Now, analyze this transcript:
+    ---
+    {text}
+    ---
+    JSON output:
+    """
+    try:
+        raw_json_response = get_response(extraction_prompt)
+        json_str = raw_json_response.strip().replace("```json", "").replace("```", "").strip()
+        return json.loads(json_str)
+    except Exception as e:
+        logger.error(f"Failed to extract facts or parse JSON from AI response: {e}")
+        return None

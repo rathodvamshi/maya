@@ -1,46 +1,112 @@
 # backend/app/services/redis_service.py
 
 import redis
-from app.config import settings
+import json
 import logging
+from typing import Optional, Dict, Any
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# This reuses the redis_client you may have defined elsewhere,
-# or creates a new one. A single client is efficient.
+# =====================================================
+# 🔹 Redis Client Initialization
+# =====================================================
 try:
+    # Using a connection pool for efficiency
     redis_pool = redis.ConnectionPool(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         db=settings.REDIS_DB,
-        decode_responses=True # Automatically decode responses to strings
+        password=settings.REDIS_PASSWORD or None,
+        decode_responses=True  # Automatically decode responses to strings
     )
     redis_client = redis.Redis(connection_pool=redis_pool)
-    redis_client.ping()
-    logger.info("✅ Successfully connected to Redis for state management.")
+    redis_client.ping()  # Test connection
+    logger.info("✅ Successfully connected to Redis.")
 except Exception as e:
     logger.error(f"❌ Failed to connect to Redis: {e}")
     redis_client = None
 
+# =====================================================
+# 🔹 Session State Management
+# =====================================================
 def get_session_state(session_id: str) -> str:
     """
-    Retrieves the current conversational state for a given session.
-    Defaults to 'initial_greeting' if no state is found.
+    Retrieve the current state of a conversation session.
+    Returns 'initial_greeting' if no state is found or Redis is unavailable.
     """
     if not redis_client:
-        return 'general_conversation' # Fallback if Redis is down
+        return "general_conversation"
 
     state_key = f"session:state:{session_id}"
-    state = redis_client.get(state_key)
-    return state if state else 'initial_greeting'
+    try:
+        state = redis_client.get(state_key)
+        return state if state else "initial_greeting"
+    except Exception as e:
+        logger.error(f"Failed to get session state for {session_id}: {e}")
+        return "initial_greeting"
 
-def set_session_state(session_id: str, state: str):
+
+def set_session_state(session_id: str, state: str, ttl_seconds: int = 86400):
     """
-    Sets the conversational state for a session with a 24-hour expiration.
+    Set or update the state of a conversation session in Redis.
     """
     if not redis_client:
         return
 
     state_key = f"session:state:{session_id}"
-    # The state will automatically expire after 24 hours of inactivity
-    redis_client.set(state_key, state, ex=86400) # ex=seconds
+    try:
+        redis_client.set(state_key, state, ex=ttl_seconds)
+    except Exception as e:
+        logger.error(f"Failed to set session state for {session_id}: {e}")
+
+
+# =====================================================
+# 🔹 Prefetched Data Caching
+# =====================================================
+def set_prefetched_data(cache_key: str, data: Dict[str, Any], ttl_seconds: int = 900):
+    """
+    Store prefetched or frequently accessed data in Redis with a TTL.
+    """
+    if not redis_client:
+        return
+
+    try:
+        json_data = json.dumps(data)
+        redis_client.set(cache_key, json_data, ex=ttl_seconds)
+        logger.info(f"✅ Prefetched data cached under key: {cache_key}")
+    except Exception as e:
+        logger.error(f"Failed to set prefetched data for key {cache_key}: {e}")
+
+
+def get_prefetched_data(cache_key: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieve prefetched data from Redis and decode it from JSON.
+    """
+    if not redis_client:
+        return None
+
+    try:
+        json_data = redis_client.get(cache_key)
+        if json_data:
+            return json.loads(json_data)
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get prefetched data for key {cache_key}: {e}")
+        return None
+
+
+# =====================================================
+# 🔹 Utility: Delete cached data (optional helper)
+# =====================================================
+def delete_cache_key(cache_key: str):
+    """
+    Delete a specific key from Redis cache.
+    """
+    if not redis_client:
+        return
+    try:
+        redis_client.delete(cache_key)
+        logger.info(f"✅ Deleted cache key: {cache_key}")
+    except Exception as e:
+        logger.error(f"Failed to delete cache key {cache_key}: {e}")

@@ -16,7 +16,7 @@ import ChatSkeletonLoader from './ChatSkeletonLoader';
 
 
 // --- The Reducer and Custom Hook sections remain completely the same ---
-// (No changes needed there)
+// No changes are needed in this logic.
 
 const initialState = {
   messages: [],
@@ -180,9 +180,6 @@ const Dashboard = () => {
     messages, input, currentUserEmail, pendingTasks 
   } = state;
 
-  // FIXED: This useEffect hook now has an empty dependency array `[]`.
-  // This GUARANTEES it only runs ONCE when the component first mounts.
-  // This prevents the infinite loop.
   useEffect(() => {
     const user = authService.getCurrentUser();
     if (user?.access_token) {
@@ -193,7 +190,7 @@ const Dashboard = () => {
     }
     handlers.loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // <-- The fix is here. The empty array means "run once on mount".
+  }, []);
 
   if (status === 'pageLoading') return <LoadingSpinner />;
   if (status === 'error') return <ErrorDisplay message={error} onRetry={handlers.loadInitialData} />;
@@ -213,6 +210,7 @@ const Dashboard = () => {
           : <ChatWindow
               messages={messages}
               isLoading={status === 'loading'}
+              activeSessionId={activeSessionId} // <-- ADDED: Pass session ID for feedback submissions
             />
         }
         <form className="chat-input-area" onSubmit={handlers.handleSendMessage}>

@@ -1,25 +1,39 @@
 # backend/app/celery_worker.py
+
 """
 Celery Worker Configuration for Maya Assistant.
 
 Features:
 1. Celery app & broker/backend configuration
-2. Periodic tasks (Celery Beat) for session summarization
-3. Background task for sending email reminders with retries
+2. Eventlet monkey-patching for async compatibility
+3. Periodic tasks (Celery Beat) for session summarization
+4. Background tasks for:
+    - Summarizing and archiving inactive sessions
+    - Sending email reminders with retries
+    - Proactively prefetching destination info (travel app use-case)
 """
 
+# ==================================================
+# 🔹 Eventlet Monkey Patch (MUST be first)
+# ==================================================
+import eventlet
+eventlet.monkey_patch()
+
+# ==================================================
+# 🔹 Imports
+# ==================================================
 import logging
 import smtplib
+import json
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
-
 from bson import ObjectId
 from celery import Celery
 from celery.schedules import crontab
 
 from app.config import settings
-from app.database import db_client  # MongoDB client
-from app.services import pinecone_service, ai_service  # Pinecone & AI services
+from app.database import db_client
+from app.services import pinecone_service, ai_service, neo4j_service, redis_service
 
 # ==================================================
 # 🔹 Logger Setup
@@ -38,26 +52,32 @@ celery_app = Celery(
 celery_app.conf.timezone = "UTC"
 
 # ==================================================
-# 🔹 Periodic Task: Session Summarization
+# 🔹 Periodic Task Setup (Celery Beat)
 # ==================================================
 @celery_app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    """Sets up periodic tasks (interval configurable via settings)."""
-    interval = getattr(settings, "SESSION_CHECK_INTERVAL", 300.0)  # default 5 minutes
+    """
+    Sets up periodic tasks for Celery Beat.
+    Default interval is 5 minutes (configurable via settings.SESSION_CHECK_INTERVAL).
+    """
+    interval = getattr(settings, "SESSION_CHECK_INTERVAL", 300.0)  # seconds
     sender.add_periodic_task(
         interval,
-        find_inactive_sessions.s(),
+        check_inactive_sessions.s(),
         name="Check and archive inactive sessions"
     )
-    logger.info(f"Configured periodic task: inactive session check every {interval} seconds")
+    logger.info(f"Configured periodic task: check inactive sessions every {interval} seconds")
 
-
-@celery_app.task(bind=True, name="find_inactive_sessions")
-def find_inactive_sessions(self):
-    """Detects sessions inactive for 30+ mins and schedules summarization."""
-    logger.info("CELERY BEAT: Checking for inactive sessions...")
+# ==================================================
+# 🔹 Task: Check Inactive Sessions
+# ==================================================
+@celery_app.task(bind=True, name="check_inactive_sessions")
+def check_inactive_sessions(self):
+    """
+    Detects sessions inactive for 30+ minutes and schedules background summarization.
+    """
+    logger.info("CELERY: Checking for inactive sessions...")
     sessions_collection = db_client.get_sessions_collection()
-
     thirty_minutes_ago = datetime.utcnow() - timedelta(minutes=30)
     query = {"lastUpdatedAt": {"$lt": thirty_minutes_ago}, "isArchived": {"$ne": True}}
 
@@ -76,23 +96,34 @@ def find_inactive_sessions(self):
         logger.info(f"Scheduling summarization for inactive session: {session_id}")
         summarize_and_archive_task.delay(session_id)
 
-
+# ==================================================
+# 🔹 Task: Summarize and Archive Session
+# ==================================================
 @celery_app.task(bind=True, name="summarize_and_archive_task")
 def summarize_and_archive_task(self, session_id: str):
-    """Fetch chat history, summarize via AI, upsert to Pinecone, archive session."""
+    """
+    Consolidates a session's memory into long-term storage.
+    Steps:
+    1. Summarizes the session for Pinecone (semantic search)
+    2. Extracts structured facts and updates Neo4j (knowledge graph)
+    3. Marks the session as archived in MongoDB
+    """
     logger.info(f"ARCHIVING: Processing session {session_id}")
     sessions_collection = db_client.get_sessions_collection()
 
+    # Fetch session data
     session = sessions_collection.find_one({"_id": ObjectId(session_id)})
     if not session:
         logger.error(f"Session {session_id} not found.")
         return
 
+    # Prepare full transcript
     full_transcript = " ".join([msg.get("text", "") for msg in session.get("messages", [])]).strip()
     if not full_transcript:
-        logger.warning(f"Session {session_id} has no content. Archiving without summary.")
+        logger.warning(f"Session {session_id} has no content to summarize.")
         summary = "No content to summarize."
     else:
+        # Step 1: Summarize using AI service
         try:
             summary = ai_service.summarize_text(full_transcript)
             if not summary:
@@ -100,14 +131,25 @@ def summarize_and_archive_task(self, session_id: str):
                 logger.warning(f"AI returned empty summary for session {session_id}")
         except Exception as e:
             logger.error(f"Failed to summarize session {session_id}: {e}")
-            return
+            summary = "Failed to generate summary."
 
+        # Step 2: Extract facts and update Neo4j
+        try:
+            facts = ai_service.extract_facts_from_text(full_transcript)
+            if facts:
+                user_entity = {"name": f"User_{session['userId']}", "label": "USER"}
+                facts.setdefault("entities", []).append(user_entity)
+                neo4j_service.add_entities_and_relationships(facts)
+        except Exception as e:
+            logger.error(f"Failed to extract/upsert facts to Neo4j for session {session_id}: {e}")
+
+    # Step 3: Upsert summary to Pinecone
     try:
         pinecone_service.upsert_session_summary(session_id, summary)
     except Exception as e:
         logger.error(f"Pinecone upsert failed for session {session_id}: {e}")
-        return
 
+    # Step 4: Mark session as archived
     try:
         sessions_collection.update_one(
             {"_id": ObjectId(session_id)},
@@ -115,11 +157,10 @@ def summarize_and_archive_task(self, session_id: str):
         )
         logger.info(f"ARCHIVING SUCCESS: Session {session_id} archived.")
     except Exception as e:
-        logger.error(f"Failed to update session {session_id} as archived: {e}")
-
+        logger.error(f"Failed to mark session {session_id} as archived: {e}")
 
 # ==================================================
-# 🔹 Celery Task: Email Reminder
+# 🔹 Task: Send Reminder Email
 # ==================================================
 @celery_app.task(
     bind=True,
@@ -128,11 +169,18 @@ def summarize_and_archive_task(self, session_id: str):
     retry_kwargs={"max_retries": 3, "countdown": 60}
 )
 def send_reminder_email(self, recipient_email: str, task_content: str):
-    """Sends reminder email with retry on failure."""
+    """
+    Sends a reminder email to a user with retries for SMTP errors.
+    """
     logger.info(f"Sending reminder to {recipient_email} for task '{task_content}'")
 
     subject = f"Maya Reminder: {task_content}"
-    body = f"Hello!\n\nThis is a friendly reminder for your scheduled task:\n\n'{task_content}'\n\n- Maya Assistant"
+    body = (
+        f"Hello!\n\n"
+        f"This is a friendly reminder for your scheduled task:\n\n"
+        f"'{task_content}'\n\n"
+        f"- Maya Assistant"
+    )
 
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -148,3 +196,41 @@ def send_reminder_email(self, recipient_email: str, task_content: str):
     except Exception as e:
         logger.error(f"Failed to send email to {recipient_email}: {e}. Retrying...")
         raise self.retry(exc=e)
+
+# ==================================================
+# 🔹 Task: Proactive Destination Prefetch
+# ==================================================
+@celery_app.task(name="prefetch_destination_info", rate_limit='10/m')
+def prefetch_destination_info_task(destination: str, session_id: str):
+    """
+    Low-priority background task to proactively fetch and cache destination info.
+    Stores results in Redis for fast retrieval.
+    """
+    logger.info(f"PROACTIVE_FETCH: Prefetching info for '{destination}' (session {session_id})")
+
+    try:
+        # MOCK DATA (replace with real API calls in future)
+        attractions = {
+            "Paris": ["Eiffel Tower", "Louvre Museum", "Notre-Dame Cathedral"],
+            "Rome": ["Colosseum", "Trevi Fountain", "Pantheon"],
+            "Tokyo": ["Senso-ji Temple", "Shibuya Crossing", "Tokyo Skytree"]
+        }
+
+        weather_info = {
+            "Paris": "Sunny, high 22°C",
+            "Rome": "Clear skies, high 25°C",
+            "Tokyo": "Partly cloudy, 28°C"
+        }
+
+        prefetched_data = {
+            "attractions": attractions.get(destination, ["interesting local sights"]),
+            "weather": weather_info.get(destination, "pleasant weather")
+        }
+
+        # Cache in Redis
+        cache_key = f"prefetched_info:{session_id}"
+        redis_service.set_prefetched_data(cache_key, prefetched_data)
+        logger.info(f"PROACTIVE_FETCH: Cached info for '{destination}' successfully")
+
+    except Exception as e:
+        logger.error(f"PROACTIVE_FETCH: Failed for '{destination}'. Error: {e}")
