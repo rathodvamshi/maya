@@ -16,4 +16,81 @@ python-dotenv
 google-generativeai
 cohere
 anthropic
-eventlet  # <-- ADD THIS LINE
+eventlet
+neo4j  # <-- ADD THIS LINE
+
+
+
+
+# # ==================================================
+# # 🌐 External API Keys / AI Services
+# # ==================================================
+
+# # Pinecone for vector databases / embeddings
+# PINECONE_API_KEY="pcsk_Uitn1_5sGBBXyQz5LWoxoCMWy93TWKVdcm3sLAJgEQzeMhkzv1zgffXnR8GJ3z6zJzveq"      
+# PINECONE_ENVIRONMENT="us-east-1"  # Pinecone region
+
+# # Google Gemini API (if using multiple keys, separate with commas)
+# GEMINI_API_KEYS="AIzaSyDBK6irtEJ4NIV4xonuMGY1a4mCZsj-sMw"
+
+# # Cohere API for NLP embeddings / LLMs
+# COHERE_API_KEY="w8Fl5GawNhWC4ZyNmsnzn5efFa5HrnViT4CkjNwp"
+
+# # Anthropic API key for Claude models
+# ANTHROPIC_API_KEY="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"
+
+# # Timeout (seconds) before retrying a failed AI provider
+# AI_PROVIDER_FAILURE_TIMEOUT=300
+
+
+# # ==================================================
+# # 🗄 Database Configuration
+# # ==================================================
+
+# # Primary MongoDB connection URL
+# DATABASE_URL="mongodb+srv://Rathodvamshi:Rathod369@cluster0.yihtilk.mongodb.net/Maya?retryWrites=true&w=majority"
+
+# # Neo4j Knowledge Graph connection
+# NEO4J_URI="bolt://localhost:7687"
+# NEO4J_USER="neo4j"
+# NEO4J_PASSWORD="password123"
+
+
+# # ==================================================
+# # 🔐 JWT / Authentication Settings
+# # ==================================================
+
+# SECRET_KEY="Maya@369"                 # Keep secret & secure in production
+# ALGORITHM="HS256"                     # JWT algorithm
+# ACCESS_TOKEN_EXPIRE_MINUTES=60        # Access token validity (minutes)
+# REFRESH_TOKEN_EXPIRE_DAYS=7           # Refresh token validity (days)
+
+
+# # ==================================================
+# # 🟢 Redis / Caching / Task Queue (Optional)
+# # ==================================================
+
+# REDIS_HOST="localhost"                # Redis host
+# REDIS_PORT=6379                       # Redis port
+# REDIS_DB=0                            # Redis database index
+# REDIS_PASSWORD=""                     # Optional password (leave empty if not used)
+
+
+# # ==================================================
+# # 📧 Email / Notifications
+# # ==================================================
+
+# MAIL_USERNAME="rathodvamshi369@gmail.com"  # SMTP username
+# MAIL_PASSWORD="rzeo aocu krnh uyax"        # SMTP password or app password
+# MAIL_FROM="rathodvamshi369@gmail.com"      # Default "from" address
+# MAIL_SERVER="smtp.gmail.com"               # SMTP server
+# MAIL_PORT=587                              # SMTP port (587 for STARTTLS)
+# MAIL_STARTTLS=True                         # Enable STARTTLS
+# MAIL_SSL_TLS=False                          # Enable SSL/TLS (for port 465)
+
+
+# # ==================================================
+# # ⚡ API Limits
+# # ==================================================
+
+# API_MONTHLY_LIMIT=20                        # Max API calls per user per month

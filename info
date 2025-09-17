@@ -1,0 +1,70 @@
+🔹 1. Install & Run Neo4j with Docker
+
+Make sure Docker Desktop is installed and running.
+👉 Download Docker
+ if you don’t already have it.
+
+Open PowerShell (Windows) or Terminal (Mac/Linux).
+
+Run this command:
+
+docker run --name maya-neo4j \
+  -p 7474:7474 -p 7687:7687 \
+  -e NEO4J_AUTH=neo4j/password123 \
+  neo4j:latest
+
+
+What this does:
+
+--name maya-neo4j → Easy container name.
+
+-p 7474:7474 → Web UI access at http://localhost:7474
+.
+
+-p 7687:7687 → Port for your Python backend to talk to Neo4j.
+
+NEO4J_AUTH=neo4j/password123 → Default login credentials.
+
+🔹 2. Verify it’s Running
+
+Open your browser → go to: http://localhost:7474
+
+Login with:
+
+Username → neo4j
+
+Password → password123
+
+👉 If you see the Neo4j Browser Console, congrats 🎉 your AI brain is alive!
+
+🔹 3. (Optional) Keep Data Persistent
+
+By default, if you stop/remove the container, your graph data is lost. To make it persistent, mount a volume:
+
+docker run --name maya-neo4j \
+  -p 7474:7474 -p 7687:7687 \
+  -v $HOME/neo4j/data:/data \
+  -e NEO4J_AUTH=neo4j/password123 \
+  neo4j:latest
+
+
+This way, your facts & relationships stay saved across restarts.
+
+✅ That’s it — Neo4j is running and ready to start storing users, facts, memories, and relationships.
+👉 Next step will be connecting your FastAPI backend to this Neo4j brain so your AI can save and query knowledge.
+
+Do you want me to jump straight into Step 2: Connect FastAPI → Neo4j (Python driver setup + test query)?
+
+You said:
+You are connected as user neo4j
+to neo4j://localhost:7687
+Connection credentials are stored in your web browser.
+ChatGPT said:
+
+🔥 Perfect — that means your Neo4j brain is alive and listening at
+
+neo4j://localhost:7687
+
+
+with the neo4j user.
+
