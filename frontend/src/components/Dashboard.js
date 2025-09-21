@@ -7,9 +7,9 @@ import sessionService from '../services/sessionService';
 import authService from '../services/auth';
 import '../styles/Dashboard.css';
 
-import ChatWindow from './ChatWindow';
-import RightSidebar from './RightSidebar';
-import LeftSidebar from './LeftSidebar';
+import ChatWindowNew from './ChatWindowNew';
+import RightSidebarNew from './RightSidebarNew';
+import LeftSidebarNew from './LeftSidebarNew';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorDisplay from './ErrorDisplay';
 import ChatSkeletonLoader from './ChatSkeletonLoader';
@@ -197,7 +197,7 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      <LeftSidebar
+      <LeftSidebarNew
         sessions={sessions}
         activeSessionId={activeSessionId}
         onNewChat={handlers.handleNewChat}
@@ -207,7 +207,7 @@ const Dashboard = () => {
       <main className="dashboard-main">
         {status === 'sessionLoading'
           ? <ChatSkeletonLoader />
-          : <ChatWindow
+          : <ChatWindowNew
               messages={messages}
               isLoading={status === 'loading'}
               activeSessionId={activeSessionId} // <-- ADDED: Pass session ID for feedback submissions
@@ -227,7 +227,7 @@ const Dashboard = () => {
           </button>
         </form>
       </main>
-      <RightSidebar 
+      <RightSidebarNew 
         currentUserEmail={currentUserEmail} 
         pendingTasks={pendingTasks} 
       />

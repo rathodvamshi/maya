@@ -1,5 +1,7 @@
 # backend/app/routers/chat.py
 
+# backend/app/routers/chat.py
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from pymongo.collection import Collection
@@ -9,12 +11,15 @@ from typing import Optional
 import json
 import re
 
+from app.celery_app import celery_app
+from app.security import get_current_active_user
+from app.services import ai_service, pinecone_service, redis_service
+# FIXED: We now explicitly import the 'neo4j_service' INSTANCE from the module.
+from app.services.neo4j_service import neo4j_service
+from app.database import get_sessions_collection
 # -----------------------------
 # Security & Services Imports
 # -----------------------------
-from app.security import get_current_active_user
-from app.services import ai_service, pinecone_service, redis_service
-from app.services.neo4j_service import neo4j_service
 from app.database import (
     get_sessions_collection,
     get_tasks_collection,
@@ -27,6 +32,13 @@ from app.celery_worker import prefetch_destination_info_task, extract_and_store_
 # Router Setup
 # -----------------------------
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
+
+
+# --- (Pydantic Models remain the same) ---
+class ContinueChatRequest(BaseModel): message: str
+class NewChatRequest(BaseModel): message: str
+class NewChatResponse(BaseModel): session_id: str; response_text: str
+class ContinueChatResponse(BaseModel): response_text: str
 
 # -----------------------------
 # Pydantic Models
@@ -76,6 +88,7 @@ def _detect_intent_and_entities(message: str) -> dict:
 # 🔹 Unified Context Gathering
 # =====================================================
 async def _gather_context(user_id: str, message: str) -> dict:
+
     """
     Retrieves all relevant context for the AI:
     - Semantic context from Pinecone
@@ -106,8 +119,8 @@ async def start_new_chat(
     """
     user_id = str(current_user["_id"])
 
-    # Ensure user node exists in Neo4j
-    neo4j_service.create_user_node(user_id)
+    # FIXED: Added 'await' to ensure the user node is created before proceeding.
+    await neo4j_service.create_user_node(user_id)
 
     # Gather all context
     context = await _gather_context(user_id, request.message)
@@ -118,7 +131,7 @@ async def start_new_chat(
     # Generate AI response
     ai_response_text = ai_service.get_response(
         prompt=request.message,
-        state=current_state,
+        state="initial_greeting",
         pinecone_context=context["pinecone_context"],
         neo4j_facts=context["neo4j_facts"]
     )
@@ -127,24 +140,24 @@ async def start_new_chat(
     user_message = {"sender": "user", "text": request.message}
     ai_message = {"sender": "assistant", "text": ai_response_text}
     session_data = {
-        "userId": current_user["_id"],  # Keep as ObjectId for MongoDB
+        "userId": current_user["_id"],
         "title": request.message[:50],
         "createdAt": datetime.utcnow(),
         "lastUpdatedAt": datetime.utcnow(),
         "isArchived": False,
         "messages": [user_message, ai_message],
     }
+
     result = sessions.insert_one(session_data)
     session_id = str(result.inserted_id)
 
     # Initialize Redis session state
     redis_service.set_session_state(session_id, "general_conversation")
 
-    # --- NEW: Dispatch real-time fact extraction task ---
-    extract_and_store_facts_task.delay(
-        user_message=request.message,
-        assistant_message=ai_response_text,
-        user_id=user_id
+    # Dispatch the background task to learn from this interaction
+    celery_app.send_task(
+        'extract_and_store_facts',
+        args=[request.message, ai_response_text, user_id]
     )
 
     return {"session_id": session_id, "response_text": ai_response_text}
@@ -155,7 +168,7 @@ async def start_new_chat(
 @router.post("/{session_id}", response_model=ContinueChatResponse)
 async def continue_chat(
     session_id: str,
-    request: ChatMessage,
+    request: ContinueChatRequest,
     current_user: dict = Depends(get_current_active_user),
     sessions: Collection = Depends(get_sessions_collection),
 ):
@@ -167,6 +180,9 @@ async def continue_chat(
     - Intent detection & proactive prefetch tasks
     """
     user_id = str(current_user["_id"])
+
+    # Gather all long-term context
+    context = await _gather_context(user_id, request.message)
 
     # Validate session ID
     try:
@@ -212,7 +228,10 @@ async def continue_chat(
         next_state = "planning_trip"
         destination = detected["entities"].get("destination")
         if destination:
-            prefetch_destination_info_task.delay(destination, session_id)
+            celery_app.send_task(
+                'prefetch_destination_info', 
+                args=[destination, session_id]
+            )
 
     # Update Redis session state
     redis_service.set_session_state(session_id, next_state)
@@ -229,10 +248,9 @@ async def continue_chat(
     )
 
     # --- NEW: Dispatch real-time fact extraction task ---
-    extract_and_store_facts_task.delay(
-        user_message=request.message,
-        assistant_message=ai_response_text,
-        user_id=user_id
+    celery_app.send_task(
+        'extract_and_store_facts',
+        args=[request.message, ai_response_text, user_id]
     )
 
     return {"response_text": ai_response_text}

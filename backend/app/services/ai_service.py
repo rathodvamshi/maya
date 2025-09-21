@@ -3,7 +3,6 @@
 import time
 import logging
 import json
-import re
 from typing import List, Optional, Dict, Any
 
 import google.generativeai as genai
@@ -26,7 +25,7 @@ anthropic_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY) if se
 # =====================================================
 # 🔹 Circuit Breaker & Provider Fallback
 # =====================================================
-FAILED_PROVIDERS = {}
+FAILED_PROVIDERS: dict[str, float] = {}
 AI_PROVIDERS = ["gemini", "anthropic", "cohere"]
 
 def _is_provider_available(name: str) -> bool:
@@ -76,7 +75,13 @@ def _try_anthropic(prompt: str) -> str:
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
-        return message.content[0].text
+        # Ensure compatibility with newer API responses
+        if hasattr(message, "content") and message.content:
+            return message.content[0].text
+        elif hasattr(message, "completion"):
+            return message.completion
+        else:
+            raise RuntimeError("Anthropic response parsing failed.")
     except Exception as e:
         raise RuntimeError(f"Anthropic API error: {e}")
 
@@ -90,6 +95,7 @@ def get_response(
     neo4j_facts: Optional[str] = None,
     state: str = "general_conversation"
 ) -> str:
+    """Generates AI response using multiple providers with fallback."""
 
     history_str = ""
     if history:
@@ -156,30 +162,44 @@ def summarize_text(text: str) -> str:
 # =====================================================
 def extract_facts_from_text(text: str) -> Optional[Dict[str, Any]]:
     """
-    Extracts structured facts (entities & relationships) from a conversation.
-    Returns: {"entities": [...], "relationships": [...]}
+    Extract structured facts (entities + relationships) from a conversation transcript.
+    Returns a JSON dict with 'entities' and 'relationships'.
     """
     extraction_prompt = f"""
-    Analyze the following conversation transcript.
-    ONLY output JSON with keys "entities" and "relationships".
-    If none, return {{"entities": [], "relationships": []}}.
+    Analyze the following transcript. Your only task is to extract entities and relationships.
+    Respond with ONLY a valid JSON object. Do not include markdown, explanations, or any text
+    outside of the JSON structure. If no facts are found, return {{"entities": [], "relationships": []}}.
 
     Transcript:
     ---
     {text}
     ---
-    JSON output:
     """
     try:
-        raw_response = get_response(extraction_prompt)
-        match = re.search(r'\{.*\}', raw_response, re.DOTALL)
-        if not match:
-            logger.warning(f"Fact extraction returned no JSON: {raw_response}")
+        # Use the providers most suited for structured output
+        fact_providers = [_try_gemini, _try_anthropic]
+        raw_response = ""
+        for func in fact_providers:
+            try:
+                raw_response = func(extraction_prompt)
+                if raw_response:
+                    break
+            except Exception as e:
+                logger.warning(f"Fact extraction attempt failed for provider {func.__name__}: {e}")
+
+        if not raw_response:
+            raise RuntimeError("All fact-extraction providers failed.")
+
+        # Attempt robust JSON parsing
+        start = raw_response.find("{")
+        end = raw_response.rfind("}")
+        if start != -1 and end != -1:
+            json_str = raw_response[start:end + 1]
+            return json.loads(json_str)
+        else:
+            logger.warning(f"Fact extraction returned no valid JSON. Raw: {raw_response}")
             return {"entities": [], "relationships": []}
-        return json.loads(match.group(0))
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error in fact extraction: {e}")
-        return {"entities": [], "relationships": []}
+
     except Exception as e:
-        logger.error(f"Failed to extract facts: {e}")
+        logger.error(f"Failed to extract facts from text: {e}")
         return {"entities": [], "relationships": []}

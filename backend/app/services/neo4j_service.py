@@ -1,173 +1,80 @@
 # backend/app/services/neo4j_service.py
 
-from neo4j import GraphDatabase, Driver
-from app.config import settings
 import logging
 from typing import List, Optional, Dict, Any
+from neo4j import AsyncGraphDatabase, AsyncDriver
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-
-# =====================================================
-# 🔹 Neo4j Service Class
-# =====================================================
 class Neo4jService:
-    """
-    Neo4j service to manage graph operations:
-    - Connection management
-    - Creating User & Session nodes
-    - Adding entities and relationships
-    - Retrieving user facts for AI context
-    """
+    _driver: Optional[AsyncDriver] = None
 
-    def __init__(self, uri: str, user: str, password: str):
-        """
-        Initialize Neo4j driver and verify connectivity.
-        """
+    async def connect(self):
+        if self._driver: return
         try:
-            self._driver: Optional[Driver] = GraphDatabase.driver(uri, auth=(user, password))
-            self._driver.verify_connectivity()
-            logger.info("✅ Successfully connected to Neo4j.")
+            self._driver = AsyncGraphDatabase.driver(
+                settings.NEO4J_URI, 
+                auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
+            )
+            await self._driver.verify_connectivity()
         except Exception as e:
-            logger.error(f"❌ Failed to connect to Neo4j: {e}")
+            logger.error(f"❌ Initial Neo4j connection failed: {e}")
             self._driver = None
 
-    def close(self):
-        """Close the Neo4j driver connection."""
+    async def close(self):
         if self._driver:
-            self._driver.close()
-            logger.info("Neo4j connection closed.")
+            await self._driver.close()
 
-    # -----------------------------
-    # Generic Query Execution
-    # -----------------------------
-    def run_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> Optional[List[Dict[str, Any]]]:
-        """
-        Execute a Cypher query safely and return results as a list of dicts.
-        """
+    async def run_query(self, query: str, parameters: Optional[Dict] = None) -> Optional[List[Dict]]:
         if not self._driver:
-            logger.error("Neo4j driver not initialized. Cannot run query.")
+            logger.error("Neo4j driver not available. Cannot run query.")
             return None
-
         try:
-            with self._driver.session() as session:
-                result = session.run(query, parameters or {})
-                return [record.data() for record in result]
+            async with self._driver.session() as session:
+                result = await session.run(query, parameters or {})
+                return [record.data() async for record in result]
         except Exception as e:
             logger.error(f"Neo4j query failed: {e}")
             return None
 
-    # -----------------------------
-    # User Operations
-    # -----------------------------
-    def create_user_node(self, user_id: str):
-        """Create a User node if it doesn't already exist."""
-        query = "MERGE (u:User {id: $user_id}) RETURN u"
-        self.run_query(query, {"user_id": user_id})
-        logger.info(f"Ensured User node exists for id: {user_id}")
+    # =====================================================
+    # 🔹 RESTORED: User Operations
+    # =====================================================
+    async def create_user_node(self, user_id: str):
+        """Creates a User node if it doesn't already exist."""
+        await self.run_query("MERGE (u:User {id: $user_id})", {"user_id": user_id})
 
-    def get_user_node(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a single User node by ID."""
-        query = "MATCH (u:User {id: $user_id}) RETURN u LIMIT 1"
-        result = self.run_query(query, {"user_id": user_id})
-        return result[0] if result else None
-
-    # -----------------------------
-    # Session Operations
-    # -----------------------------
-    def create_session_node(self, session_id: str, user_id: str):
-        """
-        Create a Session node and link it to a User node.
-        Useful for tracking chat sessions in the knowledge graph.
-        """
-        query = """
-        MATCH (u:User {id: $user_id})
-        MERGE (s:Session {id: $session_id})
-        MERGE (u)-[:HAS_SESSION]->(s)
-        RETURN s
-        """
-        self.run_query(query, {"user_id": user_id, "session_id": session_id})
-        logger.info(f"Session node created and linked to User {user_id}: {session_id}")
-
-    # -----------------------------
-    # Fact / Knowledge Graph Operations
-    # -----------------------------
-    def add_entities_and_relationships(self, facts: Dict[str, Any]):
-        """
-        Add structured facts (entities + relationships) to the Neo4j graph.
-        Idempotent: MERGE avoids duplicates.
-
-        Facts format:
-        {
-            "entities": [{"name": "Alex", "label": "PERSON"}],
-            "relationships": [{"source": "Alex", "target": "Paris", "type": "PLANS_TRIP_TO"}]
-        }
-        """
-        entities = facts.get("entities", [])
-        relationships = facts.get("relationships", [])
-
-        if not entities and not relationships:
-            logger.info("No new facts to add to the knowledge graph.")
-            return
-
-        if not self._driver:
-            logger.error("Neo4j driver not initialized. Cannot add facts.")
-            return
-
-        try:
-            with self._driver.session() as session:
-                session.write_transaction(self._create_graph_nodes_and_edges, entities, relationships)
-            logger.info(f"✅ Added {len(entities)} entities and {len(relationships)} relationships to Neo4j.")
-        except Exception as e:
-            logger.error(f"Failed to add facts to Neo4j: {e}")
-
-    @staticmethod
-    def _create_graph_nodes_and_edges(tx, entities: List[Dict[str, Any]], relationships: List[Dict[str, Any]]):
-        """Transaction helper: creates nodes and relationships safely."""
-        # Create entity nodes
-        for entity in entities:
-            query = f"MERGE (n:{entity['label']} {{name: $name}})"
-            tx.run(query, name=entity['name'])
-
-        # Create relationships
-        for rel in relationships:
-            query = (
-                "MATCH (source {name: $source_name}), (target {name: $target_name}) "
-                f"MERGE (source)-[r:{rel['type']}]->(target)"
-            )
-            tx.run(query, source_name=rel['source'], target_name=rel['target'])
-
-    # -----------------------------
-    # User Facts Retrieval for AI
-    # -----------------------------
-    def get_user_facts(self, user_id: str) -> Optional[str]:
-        """
-        Retrieve all known facts connected to a user and format them into
-        a human-readable string suitable for AI prompts.
-        """
+    async def get_user_facts(self, user_id: str) -> Optional[str]:
+        """Retrieves all known facts connected to a user."""
         query = """
         MATCH (u:User {id: $user_id})-[r]->(n)
-        RETURN u.id AS user_id, type(r) AS relationship, n.name AS entity_name, labels(n)[0] AS entity_label
+        WHERE NOT n:User AND n.name IS NOT NULL
+        RETURN type(r) AS relationship, n.name AS entity_name
         """
-        results = self.run_query(query, {"user_id": user_id})
-
+        results = await self.run_query(query, {"user_id": user_id})
         if not results:
             return "No specific facts are known about this user yet."
-
-        facts = []
-        for record in results:
-            relationship_text = record['relationship'].lower().replace('_', ' ')
-            fact_string = f"- Fact: The user's {relationship_text} is '{record['entity_name']}' (Category: {record['entity_label']})."
-            facts.append(fact_string)
-
+        facts = [f"- The user's {r['relationship'].lower().replace('_', ' ')} is '{r['entity_name']}'." for r in results]
         return "\n".join(facts)
+        
+    async def add_entities_and_relationships(self, facts: Dict[str, Any]):
+        """Adds structured facts to the knowledge graph."""
+        entities = facts.get("entities", [])
+        relationships = facts.get("relationships", [])
+        if not entities and not relationships: return
 
+        async with self._driver.session() as session:
+            async with session.begin_transaction() as tx:
+                for entity in entities:
+                    label = "".join(filter(str.isalnum, entity.get("label", "Thing")))
+                    await tx.run(f"MERGE (n:{label} {{name: $name}})", name=entity.get("name"))
+                for rel in relationships:
+                    rel_type = "".join(filter(str.isalnum, rel.get("type", "RELATED_TO")))
+                    await tx.run(
+                        f"MATCH (source {{name: $source_name}}), (target {{name: $target_name}}) "
+                        f"MERGE (source)-[r:{rel_type}]->(target)",
+                        source_name=rel.get("source"), target_name=rel.get("target")
+                    )
 
-# =====================================================
-# 🔹 Singleton Instance
-# =====================================================
-neo4j_service = Neo4jService(
-    uri=settings.NEO4J_URI,
-    user=settings.NEO4J_USER,
-    password=settings.NEO4J_PASSWORD
-)
+neo4j_service = Neo4jService()

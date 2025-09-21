@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
-import * as THREE from 'three';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import Login from './components/Login';
-import Register from './components/Register';
+import RegisterNew from './components/RegisterNew';
+import AuthModal from './components/AuthModal';
+import LandingPage from './components/LandingPage';
 import Dashboard from './components/Dashboard';
+import LoadingSpinner from './components/LoadingSpinner';
 import authService from './services/auth';
+import './styles/variables.css';
 import './styles/App.css';
 
-// Home/landing page with 3D background animation
-const Home = () => {
+/* 
+// Old Home component - replaced with LandingPage
+const Home = ({ setAuthModal }) => {
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mountRef = useRef(null);
 
@@ -173,8 +176,18 @@ const Home = () => {
                 <h1 className="hero-title">Maya: Your Personal AI Assistant</h1>
                 <p className="hero-subtitle">An intelligent, adaptive partner for managing tasks and memories with a human touch.</p>
                 <div className="hero-cta">
-                    <Link to="/login" className="cta-button login-link">Get Started</Link>
-                    <Link to="/register" className="cta-button register-link">Sign Up</Link>
+                    <button 
+                        onClick={() => setAuthModal({ isOpen: true, mode: 'signin' })} 
+                        className="cta-button login-link"
+                    >
+                        Get Started
+                    </button>
+                    <button 
+                        onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })} 
+                        className="cta-button register-link"
+                    >
+                        Sign Up
+                    </button>
                 </div>
             </div>
 
@@ -247,66 +260,252 @@ const Home = () => {
         </div>
     );
 };
+*/ 
 
-// A wrapper to protect routes that require authentication
+// Enhanced route animations
+const pageVariants = {
+    initial: {
+        opacity: 0,
+        x: -20,
+        scale: 0.98
+    },
+    in: {
+        opacity: 1,
+        x: 0,
+        scale: 1
+    },
+    out: {
+        opacity: 0,
+        x: 20,
+        scale: 0.98
+    }
+};
+
+const pageTransition = {
+    type: "tween",
+    ease: "anticipate",
+    duration: 0.4
+};
+
+// Animated route wrapper
+const AnimatedRoute = ({ children }) => {
+    return (
+        <motion.div
+            initial="initial"
+            animate="in"
+            exit="out"
+            variants={pageVariants}
+            transition={pageTransition}
+            style={{ width: "100%", height: "100%" }}
+        >
+            {children}
+        </motion.div>
+    );
+};
+
+// Enhanced private route wrapper with loading state
 const PrivateRoute = ({ children }) => {
-    const user = authService.getCurrentUser();
-    return user ? children : <Navigate to="/login" />;
+    const [isLoading, setIsLoading] = useState(true);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    useEffect(() => {
+        const checkAuth = async () => {
+            try {
+                const user = authService.getCurrentUser();
+                setIsAuthenticated(!!user);
+            } catch (error) {
+                setIsAuthenticated(false);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkAuth();
+    }, []);
+
+    if (isLoading) {
+        return (
+            <div className="auth-loading">
+                <LoadingSpinner />
+            </div>
+        );
+    }
+
+    return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
+// Enhanced navigation component
+const Navigation = ({ currentUser, onLogout, setAuthModal }) => {
+    const location = useLocation();
+    const isAuthPage = ['/login', '/register'].includes(location.pathname);
+
+    if (isAuthPage) return null; // Hide navigation on auth pages
+
+    return (
+        <motion.nav 
+            className="navbar"
+            initial={{ y: -60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+        >
+            <Link to={currentUser ? "/dashboard" : "/"} className="nav-brand">
+                <motion.span
+                    className="brand-text gradient-text"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                >
+                    Maya
+                </motion.span>
+            </Link>
+            <div className="nav-links">
+                {currentUser ? (
+                    <motion.button 
+                        onClick={onLogout} 
+                        className="nav-button logout-btn"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                    >
+                        Logout
+                    </motion.button>
+                ) : (
+                    <div className="nav-auth-links">
+                        <button 
+                            onClick={() => setAuthModal({ isOpen: true, mode: 'signin' })}
+                            className="nav-link nav-button"
+                        >
+                            <motion.span
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                Login
+                            </motion.span>
+                        </button>
+                        <button 
+                            onClick={() => setAuthModal({ isOpen: true, mode: 'signup' })}
+                            className="nav-link register-btn nav-button"
+                        >
+                            <motion.span
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                Register
+                            </motion.span>
+                        </button>
+                    </div>
+                )}
+            </div>
+        </motion.nav>
+    );
 };
 
 function App() {
     const [currentUser, setCurrentUser] = useState(undefined);
+    const [isInitializing, setIsInitializing] = useState(true);
+    const [authModal, setAuthModal] = useState({ isOpen: false, mode: 'signin' });
 
     useEffect(() => {
-        const user = authService.getCurrentUser();
-        if (user) {
-            setCurrentUser(user);
-        }
+        const initializeAuth = async () => {
+            try {
+                const user = authService.getCurrentUser();
+                setCurrentUser(user);
+            } catch (error) {
+                console.error('Auth initialization error:', error);
+            } finally {
+                setIsInitializing(false);
+            }
+        };
+
+        initializeAuth();
+
+        // Listen for auth state changes
+        const handleStorageChange = (e) => {
+            if (e.key === 'user' || e.key === 'access_token') {
+                const user = authService.getCurrentUser();
+                setCurrentUser(user);
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
 
-    const handleLogout = () => {
+    const handleLogout = useCallback(() => {
         authService.logout();
-        setCurrentUser(undefined);
-        window.location.href = "/login";
-    };
+        setCurrentUser(null);
+        window.location.href = "/";
+    }, []);
+
+    const handleAuthSuccess = useCallback((user) => {
+        setCurrentUser(user);
+        setAuthModal({ isOpen: false, mode: 'signin' });
+    }, []);
+
+    const closeAuthModal = useCallback(() => {
+        setAuthModal({ isOpen: false, mode: 'signin' });
+    }, []);
+
+    if (isInitializing) {
+        return (
+            <div className="app-initializing">
+                <LoadingSpinner />
+            </div>
+        );
+    }
 
     return (
         <Router>
             <div className="app-container">
-                <nav className="navbar">
-                    <Link to={currentUser ? "/dashboard" : "/"} className="nav-brand">
-                        Maya
-                    </Link>
-                    <div className="nav-links">
-                        {currentUser ? (
-                            <button onClick={handleLogout} className="nav-button">
-                                Logout
-                            </button>
-                        ) : (
-                            <>
-                                <Link to="/login" className="nav-link">Login</Link>
-                                <Link to="/register" className="nav-link register-btn">Register</Link>
-                            </>
-                        )}
-                    </div>
-                </nav>
-
                 <main className="app-content">
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
-                        <Route 
-                            path="/dashboard" 
-                            element={
-                                <PrivateRoute>
-                                    <Dashboard />
-                                </PrivateRoute>
-                            } 
-                        />
-                        <Route path="*" element={<Navigate to="/" />} />
-                    </Routes>
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <AnimatePresence mode="wait">
+                            <Routes>
+                                <Route 
+                                    path="/" 
+                                    element={
+                                        <AnimatedRoute>
+                                            <LandingPage />
+                                        </AnimatedRoute>
+                                    } 
+                                />
+                                <Route 
+                                    path="/login" 
+                                    element={
+                                        <AnimatedRoute>
+                                            <Login onAuthSuccess={handleAuthSuccess} />
+                                        </AnimatedRoute>
+                                    } 
+                                />
+                                <Route 
+                                    path="/register" 
+                                    element={
+                                        <AnimatedRoute>
+                                            <RegisterNew onAuthSuccess={handleAuthSuccess} />
+                                        </AnimatedRoute>
+                                    } 
+                                />
+                                <Route 
+                                    path="/dashboard" 
+                                    element={
+                                        <PrivateRoute>
+                                            <AnimatedRoute>
+                                                <Dashboard />
+                                            </AnimatedRoute>
+                                        </PrivateRoute>
+                                    } 
+                                />
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                        </AnimatePresence>
+                    </Suspense>
                 </main>
+
+                {/* Auth Modal */}
+                <AuthModal
+                    isOpen={authModal.isOpen}
+                    onClose={closeAuthModal}
+                    onAuthSuccess={handleAuthSuccess}
+                    initialMode={authModal.mode}
+                />
             </div>
         </Router>
     );

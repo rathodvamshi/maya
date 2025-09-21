@@ -10,7 +10,7 @@ const LeftSidebar = ({
   onDeleteSession,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [hoveredSession, setHoveredSession] = useState(null);
+  const [, setHoveredSession] = useState(null);
 
   const handleDelete = (e, sessionId) => {
     e.stopPropagation();
@@ -80,7 +80,7 @@ const LeftSidebar = ({
                     title="Delete Session"
                     onClick={(e) => handleDelete(e, session.id)}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14}/>
                   </button>
                 </div>
 
